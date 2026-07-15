@@ -1,3 +1,9 @@
+/**
+ * WorkingMemory — Fast in-session memory.
+ * Volatile: cleared on restart (by design — it's "RAM").
+ * Important values should be promoted to LongTermMemory for persistence.
+ */
+
 export class WorkingMemory {
   static readonly id = 'memory:working';
   private store = new Map<string, { value: any; expiresAt?: number }>();
@@ -17,6 +23,14 @@ export class WorkingMemory {
     return item.value;
   }
 
+  has(key: string): boolean {
+    return this.get(key) !== undefined;
+  }
+
+  delete(key: string): void {
+    this.store.delete(key);
+  }
+
   clear(): void {
     this.store.clear();
   }
@@ -31,5 +45,9 @@ export class WorkingMemory {
       }
     }
     return result;
+  }
+
+  size(): number {
+    return this.store.size;
   }
 }
