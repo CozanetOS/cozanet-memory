@@ -26,7 +26,7 @@ export class LongTermMemory {
       sessionId: record.sessionId,
     };
 
-    const stmt = db.prepare(`
+    db.prepare(`
       INSERT INTO memory_records (id, type, content, tags, timestamp, ttl, session_id)
       VALUES (@id, @type, @content, @tags, @timestamp, @ttl, @sessionId)
       ON CONFLICT(id) DO UPDATE SET
@@ -34,9 +34,7 @@ export class LongTermMemory {
         tags = excluded.tags,
         timestamp = excluded.timestamp,
         ttl = excluded.ttl
-    `);
-
-    stmt.run({
+    `).run({
       id: full.id,
       type: full.type,
       content: JSON.stringify(full.content),
@@ -46,20 +44,16 @@ export class LongTermMemory {
       sessionId: full.sessionId ?? null,
     });
 
-    // Also update FTS index
-    const ftsStmt = db.prepare(`
-      INSERT INTO memory_fts (id, content, tags, type)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT DO NOTHING
-    `);
+    // FTS5 does not support ON CONFLICT — use DELETE + INSERT
     try {
-      ftsStmt.run(
+      db.prepare('DELETE FROM memory_fts WHERE id = ?').run(full.id);
+      db.prepare('INSERT INTO memory_fts (id, content, tags, type) VALUES (?, ?, ?, ?)').run(
         full.id,
         typeof full.content === 'string' ? full.content : JSON.stringify(full.content),
         full.tags.join(' '),
         full.type
       );
-    } catch { /* FTS insert failure is non-fatal */ }
+    } catch { /* FTS failure is non-fatal */ }
 
     return full;
   }
@@ -74,21 +68,11 @@ export class LongTermMemory {
     let sql = 'SELECT * FROM memory_records WHERE 1=1';
     const params: any[] = [];
 
-    if (query.type) {
-      sql += ' AND type = ?';
-      params.push(query.type);
-    }
-    if (query.sessionId) {
-      sql += ' AND session_id = ?';
-      params.push(query.sessionId);
-    }
+    if (query.type) { sql += ' AND type = ?'; params.push(query.type); }
+    if (query.sessionId) { sql += ' AND session_id = ?'; params.push(query.sessionId); }
 
     sql += ' ORDER BY timestamp DESC';
-
-    if (query.limit) {
-      sql += ' LIMIT ?';
-      params.push(query.limit);
-    }
+    if (query.limit) { sql += ' LIMIT ?'; params.push(query.limit); }
 
     const rows = db.prepare(sql).all(...params) as any[];
 
@@ -103,7 +87,6 @@ export class LongTermMemory {
         sessionId: row.session_id ?? undefined,
       }))
       .filter(r => {
-        // Expire records with TTL
         if (r.ttl && r.timestamp + r.ttl < now) {
           this.forget(r.id);
           return false;
@@ -124,7 +107,6 @@ export class LongTermMemory {
         WHERE memory_fts MATCH ?
         LIMIT ?
       `).all(query, limit) as any[];
-
       return rows.map(row => ({
         id: row.id,
         type: row.type as MemoryRecord['type'],
@@ -133,13 +115,11 @@ export class LongTermMemory {
         timestamp: row.timestamp,
       }));
     } catch {
-      // FTS fallback: simple LIKE search
       const rows = db.prepare(`
         SELECT * FROM memory_records
         WHERE content LIKE ? OR tags LIKE ?
         LIMIT ?
       `).all(`%${query}%`, `%${query}%`, limit) as any[];
-
       return rows.map(row => ({
         id: row.id,
         type: row.type as MemoryRecord['type'],
@@ -150,22 +130,14 @@ export class LongTermMemory {
     }
   }
 
-  /**
-   * Delete a specific memory record.
-   */
   forget(id: string): void {
     const db = getDB();
     db.prepare('DELETE FROM memory_records WHERE id = ?').run(id);
   }
 
-  /**
-   * Get total count of records.
-   */
   count(type?: MemoryRecord['type']): number {
     const db = getDB();
-    if (type) {
-      return (db.prepare('SELECT COUNT(*) as c FROM memory_records WHERE type = ?').get(type) as any).c;
-    }
+    if (type) return (db.prepare('SELECT COUNT(*) as c FROM memory_records WHERE type = ?').get(type) as any).c;
     return (db.prepare('SELECT COUNT(*) as c FROM memory_records').get() as any).c;
   }
 }
