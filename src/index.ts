@@ -1,19 +1,21 @@
-export * from './types.js';
-export { WorkingMemory } from './Working/working.js';
-export { LongTermMemory } from './LongTerm/longterm.js';
-export { EpisodicMemory } from './Episodic/episodic.js';
-export { SemanticMemory } from './Semantic/semantic.js';
-export { RetrievalEngine } from './Retrieval/retrieval.js';
-export { ConversationMemory } from './Conversation/conversation.js';
-export { getDB, closeDB } from './db/database.js';
+export * from './types';
+export { WorkingMemory } from './Working/working';
+export { LongTermMemory } from './LongTerm/longterm';
+export { EpisodicMemory } from './Episodic/episodic';
+export { SemanticMemory } from './Semantic/semantic';
+export { RetrievalEngine } from './Retrieval/retrieval';
+export { ConversationMemory } from './Conversation/conversation';
+export { UserProfileMemory } from './UserProfile/userprofile';
+export { getDB, closeDB } from './db/database';
 
-// Convenience: create a fully wired memory system
-import { WorkingMemory } from './Working/working.js';
-import { LongTermMemory } from './LongTerm/longterm.js';
-import { EpisodicMemory } from './Episodic/episodic.js';
-import { SemanticMemory } from './Semantic/semantic.js';
-import { RetrievalEngine } from './Retrieval/retrieval.js';
-import { ConversationMemory } from './Conversation/conversation.js';
+// Convenience: create a fully wired memory system with user profile
+import { WorkingMemory } from './Working/working';
+import { LongTermMemory } from './LongTerm/longterm';
+import { EpisodicMemory } from './Episodic/episodic';
+import { SemanticMemory } from './Semantic/semantic';
+import { RetrievalEngine } from './Retrieval/retrieval';
+import { ConversationMemory } from './Conversation/conversation';
+import { UserProfileMemory } from './UserProfile/userprofile';
 
 export function createMemorySystem() {
   const working = new WorkingMemory();
@@ -21,7 +23,8 @@ export function createMemorySystem() {
   const episodic = new EpisodicMemory();
   const semantic = new SemanticMemory();
   const conversation = new ConversationMemory();
-  const retrieval = new RetrievalEngine(working, longTerm, semantic, conversation);
+  const userProfile = new UserProfileMemory();
+  const retrieval = new RetrievalEngine(working, longTerm, semantic, conversation, userProfile);
 
-  return { working, longTerm, episodic, semantic, conversation, retrieval };
+  return { working, longTerm, episodic, semantic, conversation, userProfile, retrieval };
 }
